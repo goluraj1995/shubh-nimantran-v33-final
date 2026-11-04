@@ -1,0 +1,68 @@
+name: Deploy Shubh Nimantran v33 Final to GitHub Pages
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Reconstruct Clean Source ZIP from Parts
+        run: |
+          echo "Joining split binary parts..."
+          cat shubh-v33-part1.bin shubh-v33-part2.bin shubh-v33-part3.bin shubh-v33-part4.bin > shubh-nimantran-v33-final-clean-source.zip
+          echo "Verifying ZIP file integrity..."
+          python3 -c "import zipfile; zf = zipfile.ZipFile('shubh-nimantran-v33-final-clean-source.zip'); bad = zf.testzip(); assert bad is None, f'ZIP corrupted at {bad}'; print('ZIP integrity check PASSED.')"
+
+      - name: Extract Clean Source Code
+        run: |
+          mkdir -p extracted_source
+          unzip -q shubh-nimantran-v33-final-clean-source.zip -d extracted_source
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: extracted_source/package-lock.json
+
+      - name: Install Dependencies & Build Frontend
+        working-directory: ./extracted_source
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+
+      - name: Verify Build Output
+        run: |
+          if [ -f "extracted_source/dist/index.html" ]; then
+            echo "Build verified: extracted_source/dist/index.html exists."
+          else
+            echo "Error: index.html not found in dist!"
+            exit 1
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload Artifact for GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './extracted_source/dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
