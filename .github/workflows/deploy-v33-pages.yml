@@ -21,10 +21,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Reconstruct Clean Source ZIP from 4 Parts
+      - name: Reconstruct Clean Source ZIP from 8 Parts
         run: |
-          echo "Joining split binary parts..."
-          cat shubh-v33-part1.bin shubh-v33-part2.bin shubh-v33-part3.bin shubh-v33-part4.bin > shubh-nimantran-v33-final-clean-source.zip
+          echo "Joining 8 split binary parts..."
+          cat shubh-v33-part1.bin shubh-v33-part2.bin shubh-v33-part3.bin shubh-v33-part4.bin shubh-v33-part5.bin shubh-v33-part6.bin shubh-v33-part7.bin shubh-v33-part8.bin > shubh-nimantran-v33-final-clean-source.zip
           echo "Verifying ZIP file integrity..."
           python3 -c "import zipfile; zf = zipfile.ZipFile('shubh-nimantran-v33-final-clean-source.zip'); bad = zf.testzip(); assert bad is None, f'ZIP corrupted at {bad}'; print('ZIP integrity check PASSED.')"
 
