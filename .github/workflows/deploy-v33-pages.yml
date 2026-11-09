@@ -1,8 +1,7 @@
+
 name: Deploy Shubh Nimantran v33 Final to GitHub Pages
 
 on:
-  push:
-    branches: [ "main", "master" ]
   workflow_dispatch:
 
 permissions:
@@ -44,11 +43,11 @@ jobs:
                   print(f'ERROR: File {fname} is missing from repository root!')
                   has_error = True
                   continue
-              
+
               actual_size = os.path.getsize(fname)
               with open(fname, 'rb') as f:
                   actual_sha = hashlib.sha256(f.read()).hexdigest()
-              
+
               if actual_size != exp_size:
                   print(f'ERROR: {fname} size mismatch! Expected: {exp_size} bytes, Found: {actual_size} bytes')
                   if actual_size < 100000:
@@ -74,24 +73,24 @@ jobs:
         run: |
           echo "Joining 8 split binary parts..."
           cat shubh-v33-part1.bin shubh-v33-part2.bin shubh-v33-part3.bin shubh-v33-part4.bin shubh-v33-part5.bin shubh-v33-part6.bin shubh-v33-part7.bin shubh-v33-part8.bin > shubh-nimantran-v33-final-clean-source.zip
-          
+
           echo "Verifying Reconstructed ZIP Integrity & Listing..."
           python3 -c "
           import zipfile, hashlib, os, sys
 
           exp_zip_size = 167573834
           exp_zip_sha = '9b4f5beaa421a4c53e195e993b57476802ef8fd1cda081d9e4ed0348a0ab76a8'
-          
+
           actual_size = os.path.getsize('shubh-nimantran-v33-final-clean-source.zip')
           with open('shubh-nimantran-v33-final-clean-source.zip', 'rb') as f:
               actual_sha = hashlib.sha256(f.read()).hexdigest()
-          
+
           print(f'Reconstructed ZIP Size: {actual_size} bytes')
           print(f'Reconstructed ZIP SHA:  {actual_sha}')
-          
+
           assert actual_size == exp_zip_size, f'Reconstructed ZIP size mismatch: {actual_size} vs {exp_zip_size}'
           assert actual_sha == exp_zip_sha, f'Reconstructed ZIP SHA mismatch: {actual_sha} vs {exp_zip_sha}'
-          
+
           zf = zipfile.ZipFile('shubh-nimantran-v33-final-clean-source.zip')
           bad = zf.testzip()
           assert bad is None, f'ZIP corrupted at {bad}'
