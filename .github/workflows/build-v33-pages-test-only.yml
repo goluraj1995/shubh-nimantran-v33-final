@@ -1,0 +1,64 @@
+
+name: Build Shubh Nimantran v33 FINAL Test (Build Only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      - name: Verify 6 BIN Parts, Reconstruct Source Archive & Extract
+        run: |
+          set -e
+          PARTS=(
+            "parts/shubh-v33-final-2026-11-09-part1.bin"
+            "parts/shubh-v33-final-2026-11-09-part2.bin"
+            "parts/shubh-v33-final-2026-11-09-part3.bin"
+            "parts/shubh-v33-final-2026-11-09-part4.bin"
+            "parts/shubh-v33-final-2026-11-09-part5.bin"
+            "parts/shubh-v33-final-2026-11-09-part6.bin"
+          )
+          SIZES=(15000000 15000000 15000000 15000000 15000000 9457822)
+          SHAS=(
+            "96f10dc375acdd4ef59cc49c725d74609f486dab5a2512813708e1b88c9a3859"
+            "5fd1189b2dfb301ad3fd6ad9ef5a646d8d1b920532b56c4e3ae42692c66aa9b1"
+            "3c220f62b793512aeb2365bf543a7959190bdf37be9cd0e0b2578f2c89504b2a"
+            "37697494df9c1278a1222e4ee9c256ac9de041cf612d7f262dcac89a2a32f0be"
+            "b0264ef95922101bab5e496c862100b3ad63f4d119feae942e7c5f66a5bdd019"
+            "08093cae4f91605a1cdc3e2a6850d5810bff172260d0a750b2b567028f703e23"
+          )
+          for i in "${!PARTS[@]}"; do
+            test -f "${PARTS[$i]}"
+            test "$(stat -c%s "${PARTS[$i]}")" -eq "${SIZES[$i]}"
+            echo "${SHAS[$i]}  ${PARTS[$i]}" | sha256sum -c -
+          done
+          cat "${PARTS[@]}" > shubh-nimantran-v33-final-clean-source.zip
+          test "$(stat -c%s shubh-nimantran-v33-final-clean-source.zip)" -eq 84457822
+          echo "9a17896702d88da9e540bb2037cfc1c485c051b047a4696c3dd2831119636db3  shubh-nimantran-v33-final-clean-source.zip" | sha256sum -c -
+          unzip -t shubh-nimantran-v33-final-clean-source.zip
+          mkdir -p extracted_source
+          unzip -q shubh-nimantran-v33-final-clean-source.zip -d extracted_source/
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies and build
+        working-directory: extracted_source
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+
+      - name: Upload build artifact (no deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: shubh-nimantran-v33-build-only-test
+          path: ./extracted_source/dist
