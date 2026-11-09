@@ -1,5 +1,5 @@
 
-name: Deploy Shubh Nimantran v33 Final to GitHub Pages
+name: Deploy Shubh Nimantran v33 FINAL to GitHub Pages (Candidate Phase 8.89)
 
 on:
   workflow_dispatch:
@@ -14,121 +14,111 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository code
         uses: actions/checkout@v4
 
-      - name: Check and Verify Part Files Integrity
+      - name: Verify 6 BIN Parts, Reconstruct Source Archive & Extract
         run: |
-          echo "=== 1. Checking 8 Binary Part Files Size & Checksums ==="
-          python3 -c "
-          import hashlib, os, sys
+          set -e
+          echo "=== Step 1: Verifying 6 BIN Parts ==="
+          
+          declare -A EXPECTED_SIZES=(
+            ["parts/shubh-v33-final-2026-11-09-part1.bin"]=15000000
+            ["parts/shubh-v33-final-2026-11-09-part2.bin"]=15000000
+            ["parts/shubh-v33-final-2026-11-09-part3.bin"]=15000000
+            ["parts/shubh-v33-final-2026-11-09-part4.bin"]=15000000
+            ["parts/shubh-v33-final-2026-11-09-part5.bin"]=15000000
+            ["parts/shubh-v33-final-2026-11-09-part6.bin"]=9457822
+          )
 
-          expected = [
-              ('shubh-v33-part1.bin', 22020096, 'fa4c3d35425bb18c0662f0592e82256d28fcdc60746a5efe0260cb327f4287e2'),
-              ('shubh-v33-part2.bin', 22020096, '08baf4134ad890bb3a3ff513d8136952f1592310db8250cbfa6ad2832e40ac3b'),
-              ('shubh-v33-part3.bin', 22020096, '0a4607a3def7d650082195e65d278dad63539b4cf1e5bbaba8e164190218298f'),
-              ('shubh-v33-part4.bin', 22020096, '6d645f5c9c6a8d2ad75bb1094aee470348fd7ccbd6a03773ddbe52fa8ab9c8c5'),
-              ('shubh-v33-part5.bin', 22020096, '43daffef04264158864a77a4d0f89811ad332d9f278c31bfeb9b84cf9b4b57ea'),
-              ('shubh-v33-part6.bin', 22020096, '3a601a3bc902ad10f0362cb7368785ae6a0e1162963739cb0bf5152f049f34a3'),
-              ('shubh-v33-part7.bin', 22020096, 'df72a890c6eaa218365131bb832cce37af39ce706463db7ba0013befe09f058e'),
-              ('shubh-v33-part8.bin', 13433162, 'd119ac0085212219674d9ff2f383f6ef39dcd9d76406ac68d4cdea034c9a3c48')
-          ]
+          declare -A EXPECTED_SHAS=(
+            ["parts/shubh-v33-final-2026-11-09-part1.bin"]="96f10dc375acdd4ef59cc49c725d74609f486dab5a2512813708e1b88c9a3859"
+            ["parts/shubh-v33-final-2026-11-09-part2.bin"]="5fd1189b2dfb301ad3fd6ad9ef5a646d8d1b920532b56c4e3ae42692c66aa9b1"
+            ["parts/shubh-v33-final-2026-11-09-part3.bin"]="3c220f62b793512aeb2365bf543a7959190bdf37be9cd0e0b2578f2c89504b2a"
+            ["parts/shubh-v33-final-2026-11-09-part4.bin"]="37697494df9c1278a1222e4ee9c256ac9de041cf612d7f262dcac89a2a32f0be"
+            ["parts/shubh-v33-final-2026-11-09-part5.bin"]="b0264ef95922101bab5e496c862100b3ad63f4d119feae942e7c5f66a5bdd019"
+            ["parts/shubh-v33-final-2026-11-09-part6.bin"]="08093cae4f91605a1cdc3e2a6850d5810bff172260d0a750b2b567028f703e23"
+          )
 
-          has_error = False
-          for fname, exp_size, exp_sha in expected:
-              if not os.path.exists(fname):
-                  print(f'ERROR: File {fname} is missing from repository root!')
-                  has_error = True
-                  continue
+          PARTS=(
+            "parts/shubh-v33-final-2026-11-09-part1.bin"
+            "parts/shubh-v33-final-2026-11-09-part2.bin"
+            "parts/shubh-v33-final-2026-11-09-part3.bin"
+            "parts/shubh-v33-final-2026-11-09-part4.bin"
+            "parts/shubh-v33-final-2026-11-09-part5.bin"
+            "parts/shubh-v33-final-2026-11-09-part6.bin"
+          )
 
-              actual_size = os.path.getsize(fname)
-              with open(fname, 'rb') as f:
-                  actual_sha = hashlib.sha256(f.read()).hexdigest()
+          for part in "${PARTS[@]}"; do
+            if [ ! -f "$part" ]; then
+              echo "ERROR: Missing BIN part: $part"
+              exit 1
+            fi
+            
+            ACTUAL_SIZE=$(stat -c%s "$part")
+            EXP_SIZE="${EXPECTED_SIZES[$part]}"
+            if [ "$ACTUAL_SIZE" -ne "$EXP_SIZE" ]; then
+              echo "ERROR: Size mismatch for $part. Expected $EXP_SIZE, got $ACTUAL_SIZE"
+              exit 1
+            fi
 
-              if actual_size != exp_size:
-                  print(f'ERROR: {fname} size mismatch! Expected: {exp_size} bytes, Found: {actual_size} bytes')
-                  if actual_size < 100000:
-                      with open(fname, 'rb') as f:
-                          preview = f.read(200)
-                      print(f'  -> Possible HTML/Text file instead of binary: {preview}')
-                  has_error = True
-              elif actual_sha != exp_sha:
-                  print(f'ERROR: {fname} SHA-256 mismatch!\n  Expected: {exp_sha}\n  Found:    {actual_sha}')
-                  has_error = True
-              else:
-                  print(f'✓ {fname} VERIFIED: {actual_size} bytes (SHA-256 match)')
+            ACTUAL_SHA=$(sha256sum "$part" | awk '{print $1}')
+            EXP_SHA="${EXPECTED_SHAS[$part]}"
+            if [ "$ACTUAL_SHA" != "$EXP_SHA" ]; then
+              echo "ERROR: SHA-256 mismatch for $part. Expected $EXP_SHA, got $ACTUAL_SHA"
+              exit 1
+            fi
+            echo "VERIFIED PART: $part (Size: $ACTUAL_SIZE bytes, SHA-256: $ACTUAL_SHA)"
+          done
 
-          if has_error:
-              print('\n[VALIDATION FAILED] One or more part files are corrupted, truncated, or incomplete.')
-              print('Please ensure all 8 binary files are fully downloaded and committed.')
-              sys.exit(1)
-          else:
-              print('\n[VALIDATION PASSED] All 8 binary parts are 100% genuine and intact.')
-          "
+          echo "=== Step 2: Reconstructing ZIP Archive ==="
+          cat "${PARTS[@]}" > shubh-nimantran-v33-final-clean-source.zip
 
-      - name: Reconstruct Clean Source ZIP
-        run: |
-          echo "Joining 8 split binary parts..."
-          cat shubh-v33-part1.bin shubh-v33-part2.bin shubh-v33-part3.bin shubh-v33-part4.bin shubh-v33-part5.bin shubh-v33-part6.bin shubh-v33-part7.bin shubh-v33-part8.bin > shubh-nimantran-v33-final-clean-source.zip
+          echo "=== Step 3: Verifying Reconstructed ZIP Archive & Integrity ==="
+          ZIP_SIZE=$(stat -c%s "shubh-nimantran-v33-final-clean-source.zip")
+          EXP_ZIP_SIZE=84457822
+          if [ "$ZIP_SIZE" -ne "$EXP_ZIP_SIZE" ]; then
+            echo "ERROR: ZIP Size mismatch. Expected $EXP_ZIP_SIZE, got $ZIP_SIZE"
+            exit 1
+          fi
 
-          echo "Verifying Reconstructed ZIP Integrity & Listing..."
-          python3 -c "
-          import zipfile, hashlib, os, sys
+          ZIP_SHA=$(sha256sum "shubh-nimantran-v33-final-clean-source.zip" | awk '{print $1}')
+          EXP_ZIP_SHA="9a17896702d88da9e540bb2037cfc1c485c051b047a4696c3dd2831119636db3"
+          if [ "$ZIP_SHA" != "$EXP_ZIP_SHA" ]; then
+            echo "ERROR: ZIP SHA-256 mismatch. Expected $EXP_ZIP_SHA, got $ZIP_SHA"
+            exit 1
+          fi
+          echo "VERIFIED ZIP: Size $ZIP_SIZE bytes, SHA-256 $ZIP_SHA"
 
-          exp_zip_size = 167573834
-          exp_zip_sha = '9b4f5beaa421a4c53e195e993b57476802ef8fd1cda081d9e4ed0348a0ab76a8'
+          echo "=== Step 4: ZIP Integrity Test (unzip -t) ==="
+          unzip -t shubh-nimantran-v33-final-clean-source.zip
 
-          actual_size = os.path.getsize('shubh-nimantran-v33-final-clean-source.zip')
-          with open('shubh-nimantran-v33-final-clean-source.zip', 'rb') as f:
-              actual_sha = hashlib.sha256(f.read()).hexdigest()
-
-          print(f'Reconstructed ZIP Size: {actual_size} bytes')
-          print(f'Reconstructed ZIP SHA:  {actual_sha}')
-
-          assert actual_size == exp_zip_size, f'Reconstructed ZIP size mismatch: {actual_size} vs {exp_zip_size}'
-          assert actual_sha == exp_zip_sha, f'Reconstructed ZIP SHA mismatch: {actual_sha} vs {exp_zip_sha}'
-
-          zf = zipfile.ZipFile('shubh-nimantran-v33-final-clean-source.zip')
-          bad = zf.testzip()
-          assert bad is None, f'ZIP corrupted at {bad}'
-          print(f'✓ ZIP integrity check PASSED ({len(zf.namelist())} files verified).')
-          "
-
-      - name: Extract Clean Source Code
-        run: |
+          echo "=== Step 5: Extracting Source Archive ==="
           mkdir -p extracted_source
-          unzip -q shubh-nimantran-v33-final-clean-source.zip -d extracted_source
-          echo "Source code successfully extracted."
+          unzip -q shubh-nimantran-v33-final-clean-source.zip -d extracted_source/
+          echo "Extracted clean source files to extracted_source/"
 
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: extracted_source/package-lock.json
 
-      - name: Install Dependencies & Build Frontend
-        working-directory: ./extracted_source
+      - name: Install dependencies & Build Production Dist
+        working-directory: extracted_source
         run: |
           npm ci --no-fund --no-audit
           npm run build
 
-      - name: Verify Build Output
-        run: |
-          if [ -f "extracted_source/dist/index.html" ]; then
-            echo "Build verified: extracted_source/dist/index.html exists."
-          else
-            echo "Error: index.html not found in dist!"
-            exit 1
-          fi
-
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
-      - name: Upload Artifact for GitHub Pages
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './extracted_source/dist'
