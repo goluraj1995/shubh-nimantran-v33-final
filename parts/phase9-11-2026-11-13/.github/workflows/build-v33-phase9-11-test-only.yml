@@ -1,0 +1,101 @@
+
+name: Build and Test Shubh Nimantran v33 Phase 9.11 Source
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase9-11-source-build-test
+  cancel-in-progress: false
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify all seven Phase 9.11 BIN parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="parts/phase9-11-2026-11-13"
+
+          PARTS=(
+            "$DIR/shubh_nimantran_v33_phase9_11.part1.bin"
+            "$DIR/shubh_nimantran_v33_phase9_11.part2.bin"
+            "$DIR/shubh_nimantran_v33_phase9_11.part3.bin"
+            "$DIR/shubh_nimantran_v33_phase9_11.part4.bin"
+            "$DIR/shubh_nimantran_v33_phase9_11.part5.bin"
+            "$DIR/shubh_nimantran_v33_phase9_11.part6.bin"
+            "$DIR/shubh_nimantran_v33_phase9_11.part7.bin"
+          )
+
+          SIZES=(
+            14000000
+            14000000
+            14000000
+            14000000
+            14000000
+            14000000
+            2137725
+          )
+
+          SHAS=(
+            "1a72ee29c73dbe848ffc98e4a7b478d6e517ac42e98dcf0a80201271a3476210"
+            "82b286521206d66e482bb07260a019e3cbd6c3b89456b5b7b3f4894f8df821bc"
+            "2110c69f7a90a3a6d63ec9259e5ae5c8aa4dc75199c7f10ffddc2f1684a546b1"
+            "e898cf7c2deddd87dabe51bba6ebbcdb9885a9025967332af64b2908bb956811"
+            "8dcc292d96d153fbc4eb2d219e7384d18a32d34bfff7b61e5ddbd699157ff59b"
+            "8203e191773bb0cc846a7fffb76c49b6692becd8af51c357e0764a087bbd8484"
+            "3da8e8e2517a394bc6254cf9ec5e0c6038277691ac479d968f1294250763d62c"
+          )
+
+          for i in "${!PARTS[@]}"; do
+            test -f "${PARTS[$i]}"
+            actual_size="$(stat -c%s "${PARTS[$i]}")"
+            test "$actual_size" -eq "${SIZES[$i]}"
+            echo "${SHAS[$i]}  ${PARTS[$i]}" | sha256sum -c -
+          done
+
+      - name: Reconstruct and verify source ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="parts/phase9-11-2026-11-13"
+
+          cat \
+            "$DIR/shubh_nimantran_v33_phase9_11.part1.bin" \
+            "$DIR/shubh_nimantran_v33_phase9_11.part2.bin" \
+            "$DIR/shubh_nimantran_v33_phase9_11.part3.bin" \
+            "$DIR/shubh_nimantran_v33_phase9_11.part4.bin" \
+            "$DIR/shubh_nimantran_v33_phase9_11.part5.bin" \
+            "$DIR/shubh_nimantran_v33_phase9_11.part6.bin" \
+            "$DIR/shubh_nimantran_v33_phase9_11.part7.bin" \
+            > phase9-11-source.zip
+
+          test "$(stat -c%s phase9-11-source.zip)" -eq 86137725
+          echo "3c5e78dd03c63d0f250e464593502e2094b0ba31039e1720c573c079e2390f72  phase9-11-source.zip" | sha256sum -c -
+
+          unzip -tq phase9-11-source.zip
+          mkdir -p extracted_source
+          unzip -q phase9-11-source.zip -d extracted_source/
+          test -f extracted_source/package.json
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies and run production build check
+        working-directory: extracted_source
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+
+      - name: Report build-only completion
+        run: echo "Phase 9.11 source verification and build completed. No Pages deployment was configured or performed."
