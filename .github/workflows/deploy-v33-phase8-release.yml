@@ -1,0 +1,107 @@
+
+name: Deploy Shubh Nimantran v33 Phase 8 Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_deploy:
+        description: "Enable only when intentionally publishing to production."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm_production_deploy == true }}
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify four Phase 8 BIN parts
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="parts/phase8-2026-11-13"
+
+          PARTS=(
+            "$DIR/shubh_nimantran_v33_release.part1.bin"
+            "$DIR/shubh_nimantran_v33_release.part2.bin"
+            "$DIR/shubh_nimantran_v33_release.part3.bin"
+            "$DIR/shubh_nimantran_v33_release.part4.bin"
+          )
+
+          SIZES=(22020096 22020096 22020096 18093803)
+
+          SHAS=(
+            "03dc244807572e41c268858516440523f8571fa296160e1dd14e4fd6a8cf514c"
+            "f2674dbad736914db953e934dafe5be855b9101ff73159f173c51a2d4cc4e583"
+            "618832b5ca44d2e03fbfddba5dca718e6ab48c9a035fd175bd38df223ffb19bb"
+            "d34801eb8f6f8e560f384b06bad49e2858ae319dae5da22dc6bb93b6e7c3aaa9"
+          )
+
+          for i in "${!PARTS[@]}"; do
+            test -f "${PARTS[$i]}"
+            test "$(stat -c%s "${PARTS[$i]}")" -eq "${SIZES[$i]}"
+            echo "${SHAS[$i]}  ${PARTS[$i]}" | sha256sum -c -
+          done
+
+      - name: Reconstruct and verify release ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="parts/phase8-2026-11-13"
+
+          cat \
+            "$DIR/shubh_nimantran_v33_release.part1.bin" \
+            "$DIR/shubh_nimantran_v33_release.part2.bin" \
+            "$DIR/shubh_nimantran_v33_release.part3.bin" \
+            "$DIR/shubh_nimantran_v33_release.part4.bin" \
+            > release-source.zip
+
+          test "$(stat -c%s release-source.zip)" -eq 84154091
+
+          echo "ac60f6a690102d91700a922fbb646b1edfe9f4af25f014338de5887bdaf87a41  release-source.zip" \
+            | sha256sum -c -
+
+          unzip -tq release-source.zip
+          mkdir -p extracted_source
+          unzip -q release-source.zip -d extracted_source/
+          test -f extracted_source/package.json
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies and build
+        working-directory: extracted_source
+        run: |
+          npm ci --no-fund --no-audit
+          npm run build
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: extracted_source/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
